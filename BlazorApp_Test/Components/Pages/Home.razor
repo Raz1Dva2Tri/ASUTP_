@@ -1,0 +1,180 @@
+﻿@page "/"
+@using Google.OrTools.LinearSolver
+@code {
+    private double[,] cost = {
+        { 1, 3, 5, 8 },
+        { 3, 5, 3, 3 },
+        { 2, 7, 2, 4 },
+        { 5, 3, 5, 5 },
+        { 2, 2, 6, 3 },
+        { 4, 8, 8, 7 }
+    };
+
+    private double[] supply = { 25, 10, 30, 15, 20, 30 };
+    private double[] demand = { 30, 40, 30, 30 };
+
+    private string[] demandLabels = { "B1", "B2", "B3", "B4" };
+    private double[,] transportMatrix;
+    private double totalCost;
+    private bool isSolved = false;
+
+    private void SolveTransportationProblem()
+    {
+        // Создаем решатель
+        Solver solver = Solver.CreateSolver("SCIP");
+
+        // Определяем переменные
+        int numRows = supply.Length;
+        int numCols = demand.Length;
+        Variable[,] x = new Variable[numRows, numCols];
+
+        for (int i = 0; i < numRows; i++)
+        {
+            for (int j = 0; j < numCols; j++)
+            {
+                x[i, j] = solver.MakeNumVar(0.0, double.PositiveInfinity, $"x[{i},{j}]");
+            }
+        }
+
+        // Ограничения на предложения
+        for (int i = 0; i < numRows; i++)
+        {
+            Constraint supplyConstraint = solver.MakeConstraint(0.0, supply[i], $"supply_{i}");
+            for (int j = 0; j < numCols; j++)
+            {
+                supplyConstraint.SetCoefficient(x[i, j], 1);
+            }
+        }
+
+        // Ограничения на потребности
+        for (int j = 0; j < numCols; j++)
+        {
+            Constraint demandConstraint = solver.MakeConstraint(demand[j], double.PositiveInfinity, $"demand_{j}");
+            for (int i = 0; i < numRows; i++)
+            {
+                demandConstraint.SetCoefficient(x[i, j], 1);
+            }
+        }
+
+        // Цель минимизации стоимости
+        Objective objective = solver.Objective();
+        for (int i = 0; i < numRows; i++)
+        {
+            for (int j = 0; j < numCols; j++)
+            {
+                objective.SetCoefficient(x[i, j], cost[i, j]);
+            }
+        }
+        objective.SetMinimization();
+
+        // Решаем задачу
+        Solver.ResultStatus resultStatus = solver.Solve();
+
+        if (resultStatus == Solver.ResultStatus.OPTIMAL)
+        {
+
+            transportMatrix = new double[numRows, numCols];
+            totalCost = solver.Objective().Value();
+
+            for (int i = 0; i < numRows; i++)
+            {
+                for (int j = 0; j < numCols; j++)
+                {
+                    transportMatrix[i, j] = x[i, j].SolutionValue();
+                }
+            }
+            isSolved = true;
+        }
+        else
+        {
+            isSolved = false;
+        }
+    }
+}
+
+
+
+
+
+
+<h3>Транспортная задача</h3>
+
+
+@{
+    SolveTransportationProblem();
+    isSolved = true;
+}
+
+@if (isSolved)
+{
+    <h4>Матрица затрат</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th></th>
+                @foreach (var b in demandLabels)
+                {
+                    <th>@b</th>
+                }
+                <th> Мощность заводов </th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (int i = 0; i < supply.Length; i++)
+            {
+                int a = i + 1;
+                <tr>
+                    <td>A @a  </td>
+                    @for (int j = 0; j < demand.Length; j++)
+                    {
+                        <td>@cost[i,j]</td>
+                    }
+                    <td>@supply[i]</td>
+                </tr>
+            }
+
+            <tr>
+                <td> Потребность Мастерских </td>
+                @for (int j = 0; j < demand.Length; j++)
+                {
+                    <td>@demand[j]</td>
+
+                }
+            </tr>
+        </tbody>
+    </table>
+
+    <h4>Матрица перевозок</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th></th>
+                @foreach (var b in demandLabels)
+                {
+                    <th>@b</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @for (int i = 0; i < supply.Length; i++)
+            {
+                int a = i + 1;
+                <tr>
+                    <td>A @a </td>
+                    @for (int j = 0; j < demand.Length; j++)
+                    {
+                        <td>@transportMatrix[i,j]</td>
+                    }
+                </tr>
+            }
+
+
+
+
+        </tbody>
+    </table>
+
+    <h4>Общая стоимость: @totalCost</h4>
+}
+
+
